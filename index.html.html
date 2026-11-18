@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solar System AR – Khám phá Hệ Mặt Trời</title>
+<style>
+*{box-sizing:border-box}body{margin:0;overflow:hidden;background:#050816;color:#fff;font-family:Arial,sans-serif}#scene{position:fixed;inset:0}
+.panel{position:fixed;z-index:5;left:14px;top:14px;width:min(340px,calc(100vw - 28px));padding:15px 16px;border:1px solid #ffffff30;border-radius:16px;background:#071329eF;backdrop-filter:blur(12px);max-height:calc(100vh - 28px);overflow:auto}
+h1{font-size:20px;margin:0 0 7px}.intro{font-size:12px;line-height:1.5;color:#c6d7f4;margin:0 0 11px}
+button{border:0;border-radius:9px;padding:10px 12px;font-weight:700;cursor:pointer;background:#55d6ff;color:#04111f;margin:3px 3px 3px 0}button.secondary{background:#263c5c;color:#fff}
+#status{font-size:11px;line-height:1.45;color:#9fdfff;margin-top:8px}
+#info{position:fixed;z-index:5;right:14px;top:14px;width:min(310px,calc(100vw - 28px));padding:16px;border:1px solid #ffffff30;border-radius:16px;background:#071329ed;backdrop-filter:blur(12px);display:none}
+#info h2{font-size:20px;margin:0 0 8px;color:#7fe1ff}#info p{font-size:13px;line-height:1.55;color:#d9e6ff;margin:7px 0}
+#info .fact{padding:8px 10px;background:#ffffff0c;border-radius:9px;margin-top:7px;font-size:12px;line-height:1.45}
+#close{float:right;background:#263c5c;color:#fff;padding:5px 9px}
+.legend{position:fixed;z-index:4;right:14px;bottom:14px;max-width:250px;padding:11px 13px;border-radius:13px;background:#071329d9;border:1px solid #ffffff25;font-size:11px;line-height:1.6;color:#d9e7ff}
+.hint{position:fixed;z-index:4;left:14px;bottom:13px;color:#d5e3ff;font-size:11px;text-shadow:0 1px 4px #000}
+@media(max-width:700px){.panel{width:min(300px,calc(100vw - 28px));padding:12px}.panel h1{font-size:17px}#info{top:auto;bottom:12px;right:10px;width:min(290px,calc(100vw - 20px));max-height:42vh;overflow:auto}.legend{display:none}.hint{display:none}}
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<section class="panel">
+<h1>☀️ Khám phá Hệ Mặt Trời</h1>
+<p class="intro">Chọn một hành tinh trong mô hình để tìm hiểu thông tin. Kéo chuột/chạm để xoay góc nhìn, cuộn để phóng to hoặc thu nhỏ.</p>
+<button id="arButton">Bắt đầu AR</button><button id="qrButton" class="secondary">Mã QR</button><button id="resetButton" class="secondary">Đặt lại</button><button id="viewButton" class="secondary">Xem 3D</button>
+<div id="status">Chế độ 3D. Nhấn vào Mặt Trời hoặc một hành tinh để xem thông tin.</div>
+</section>
+<section id="qrPanel" style="display:none;position:fixed;z-index:8;left:50%;top:50%;transform:translate(-50%,-50%);width:min(340px,calc(100vw - 28px));padding:18px;border-radius:16px;background:#071329f5;border:1px solid #ffffff40;box-shadow:0 18px 60px #000b;text-align:center">
+<button id="qrClose" style="float:right;background:#263c5c;color:white;padding:5px 9px">Đóng ✕</button>
+<h2 style="font-size:19px;margin:8px 0 6px">📱 Quét mã để mở AR</h2>
+<p style="font-size:12px;line-height:1.5;color:#c6d7f4">Dùng camera điện thoại quét mã QR để mở website Solar System AR.</p>
+<div id="qrcode" style="display:inline-block;background:white;padding:10px;border-radius:10px;min-width:220px;min-height:220px"></div>
+<p id="qrMessage" style="font-size:11px;line-height:1.5;color:#9fdfff;margin:10px 0 0"></p>
+</section>
+<aside id="info">
+<button id="close">Đóng ✕</button><h2 id="planetName">Tên thiên thể</h2>
+<p id="planetSummary"></p><div class="fact" id="fact1"></div><div class="fact" id="fact2"></div><div class="fact" id="fact3"></div>
+</aside>
+<div class="legend"><b>Thứ tự từ Mặt Trời</b><br>☿ Sao Thủy · ♀ Sao Kim · 🌍 Trái Đất · ♂ Sao Hỏa<br>♃ Sao Mộc · ♄ Sao Thổ · ♅ Sao Thiên Vương · ♆ Sao Hải Vương</div>
+<div class="hint">Chọn hành tinh để mở thẻ kiến thức.</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+
+const mount=document.getElementById('scene'), statusEl=document.getElementById('status');
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.xr.enabled=true;renderer.outputColorSpace=THREE.SRGBColorSpace;mount.appendChild(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x050816);
+const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.01,120);camera.position.set(0,7.5,16);
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
+scene.add(new THREE.HemisphereLight(0xb8d8ff,0x171020,1.5));
+const sunLight=new THREE.PointLight(0xffffff,170,70);scene.add(sunLight);
+
+const starGeo=new THREE.BufferGeometry(), starPositions=[];
+for(let i=0;i<1300;i++){const r=35+Math.random()*45,a=Math.random()*Math.PI*2,y=(Math.random()-.5)*55;starPositions.push(Math.cos(a)*r,y,Math.sin(a)*r);}
+starGeo.setAttribute('position',new THREE.Float32BufferAttribute(starPositions,3));
+scene.add(new THREE.Points(starGeo,new THREE.PointsMaterial({color:0xffffff,size:.12})));
+
+const system=new THREE.Group();scene.add(system);
+const sun=new THREE.Mesh(new THREE.SphereGeometry(.72,40,32),new THREE.MeshBasicMaterial({color:0xffc247}));system.add(sun);sun.userData.key='sun';
+const glow=new THREE.Mesh(new THREE.SphereGeometry(.94,32,24),new THREE.MeshBasicMaterial({color:0xff9b24,transparent:true,opacity:.13}));system.add(glow);
+const info={
+sun:{name:'Mặt Trời',summary:'Mặt Trời là ngôi sao ở trung tâm Hệ Mặt Trời. Ánh sáng và nhiệt từ Mặt Trời là nguồn năng lượng quan trọng đối với Trái Đất.',f1:'Vị trí: Trung tâm Hệ Mặt Trời',f2:'Bản chất: Một ngôi sao',f3:'Vai trò: Cung cấp ánh sáng và nhiệt cho các hành tinh'},
+mercury:{name:'Sao Thủy',summary:'Sao Thủy là hành tinh gần Mặt Trời nhất và là hành tinh nhỏ nhất trong tám hành tinh.',f1:'Vị trí: Hành tinh thứ nhất tính từ Mặt Trời',f2:'Đặc điểm: Bề mặt nhiều hố va chạm',f3:'Vệ tinh tự nhiên: Không có'},
+venus:{name:'Sao Kim',summary:'Sao Kim là hành tinh thứ hai tính từ Mặt Trời. Nó có lớp khí quyển rất dày, chủ yếu là khí carbon dioxide.',f1:'Vị trí: Hành tinh thứ hai',f2:'Đặc điểm: Hiệu ứng nhà kính rất mạnh',f3:'Vệ tinh tự nhiên: Không có'},
+earth:{name:'Trái Đất',summary:'Trái Đất là hành tinh thứ ba tính từ Mặt Trời và là nơi con người cùng nhiều dạng sống đã biết đang sinh sống.',f1:'Vị trí: Hành tinh thứ ba',f2:'Đặc điểm: Có nước dạng lỏng trên bề mặt và khí quyển giàu nitơ, ôxy',f3:'Vệ tinh tự nhiên: Mặt Trăng'},
+mars:{name:'Sao Hỏa',summary:'Sao Hỏa thường được gọi là hành tinh đỏ vì bề mặt chứa nhiều vật liệu giàu oxit sắt.',f1:'Vị trí: Hành tinh thứ tư',f2:'Đặc điểm: Bề mặt có màu đỏ đặc trưng',f3:'Vệ tinh tự nhiên: Phobos và Deimos'},
+jupiter:{name:'Sao Mộc',summary:'Sao Mộc là hành tinh lớn nhất trong Hệ Mặt Trời. Đây là hành tinh khí khổng lồ.',f1:'Vị trí: Hành tinh thứ năm',f2:'Đặc điểm: Có Vết Đỏ Lớn – một cơn bão khổng lồ',f3:'Đặc điểm cấu tạo: Chủ yếu là hydro và heli'},
+saturn:{name:'Sao Thổ',summary:'Sao Thổ là hành tinh nổi bật với hệ vành đai rộng, được tạo nên từ vô số hạt băng và đá.',f1:'Vị trí: Hành tinh thứ sáu',f2:'Đặc điểm: Hệ vành đai nổi bật',f3:'Đặc điểm cấu tạo: Chủ yếu là hydro và heli'},
+uranus:{name:'Sao Thiên Vương',summary:'Sao Thiên Vương là hành tinh khổng lồ băng, có màu xanh lục lam do khí methane trong khí quyển hấp thụ ánh sáng đỏ.',f1:'Vị trí: Hành tinh thứ bảy',f2:'Đặc điểm: Trục quay nghiêng rất lớn',f3:'Đặc điểm cấu tạo: Có các chất bay hơi như nước, amoniac và methane'},
+neptune:{name:'Sao Hải Vương',summary:'Sao Hải Vương là hành tinh thứ tám và xa Mặt Trời nhất trong tám hành tinh.',f1:'Vị trí: Hành tinh thứ tám',f2:'Đặc điểm: Có gió rất mạnh trong khí quyển',f3:'Đặc điểm cấu tạo: Hành tinh khổng lồ băng'}
+};
+const planets=[
+{key:'mercury',r:.12,d:1.25,c:0xaaa9a5,speed:1.6},{key:'venus',r:.19,d:1.8,c:0xe5bd83,speed:1.2},
+{key:'earth',r:.21,d:2.45,c:0x3288df,speed:1},{key:'mars',r:.16,d:3.05,c:0xc65c3d,speed:.8},
+{key:'jupiter',r:.43,d:4.15,c:0xd6ad83,speed:.42},{key:'saturn',r:.36,d:5.25,c:0xd8c18d,speed:.32,ring:true},
+{key:'uranus',r:.28,d:6.35,c:0x8bd9df,speed:.23},{key:'neptune',r:.27,d:7.35,c:0x4268d8,speed:.18}
+];
+const planetObjects=[];
+for(const p of planets){
+ const orbit=new THREE.Mesh(new THREE.RingGeometry(p.d-.008,p.d+.008,128),new THREE.MeshBasicMaterial({color:0x8da9d8,side:THREE.DoubleSide,transparent:true,opacity:.35}));orbit.rotation.x=-Math.PI/2;system.add(orbit);
+ const pivot=new THREE.Group();system.add(pivot);
+ const material=new THREE.MeshStandardMaterial({color:p.c,roughness:.85});
+ const mesh=new THREE.Mesh(new THREE.SphereGeometry(p.r,32,24),material);mesh.position.x=p.d;mesh.userData.key=p.key;pivot.add(mesh);
+ if(p.key==='earth'){
+  const cloud=new THREE.Mesh(new THREE.SphereGeometry(p.r*1.025,32,24),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.12,wireframe:true}));mesh.add(cloud);
+ }
+ if(p.ring){const ring=new THREE.Mesh(new THREE.RingGeometry(p.r*1.35,p.r*2.05,64),new THREE.MeshStandardMaterial({color:0xd9c79b,side:THREE.DoubleSide,transparent:true,opacity:.75}));ring.rotation.x=-.35;mesh.add(ring);}
+ planetObjects.push({pivot,mesh,speed:p.speed});
+}
+const clickable=[sun,...planetObjects.map(p=>p.mesh)];
+const raycaster=new THREE.Raycaster(), pointer=new THREE.Vector2();
+function showInfo(key){const d=info[key];if(!d)return;document.getElementById('planetName').textContent=d.name;document.getElementById('planetSummary').textContent=d.summary;document.getElementById('fact1').textContent=d.f1;document.getElementById('fact2').textContent=d.f2;document.getElementById('fact3').textContent=d.f3;document.getElementById('info').style.display='block';}
+document.getElementById('close').onclick=()=>document.getElementById('info').style.display='none';
+const qrPanel=document.getElementById('qrPanel');
+document.getElementById('qrButton').onclick=()=>{
+ const qrBox=document.getElementById('qrcode');
+ qrBox.innerHTML='';
+ const pageUrl=window.location.href;
+ if(!window.QRCode){
+   document.getElementById('qrMessage').textContent='Không tải được thư viện tạo QR. Kiểm tra kết nối Internet rồi thử lại.';
+ }else{
+   new QRCode(qrBox,{text:pageUrl,width:200,height:200,colorDark:'#071329',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H});
+   const isLocal=location.hostname==='localhost'||location.hostname==='127.0.0.1';
+   document.getElementById('qrMessage').textContent=isLocal
+    ?'Lưu ý: Đường dẫn hiện tại là localhost nên điện thoại khác không mở được. Hãy đưa website lên hosting HTTPS rồi tạo lại mã QR.'
+    :'Đường dẫn QR: '+pageUrl+' — Hãy mở bằng điện thoại có hỗ trợ WebXR AR.';
+ }
+ qrPanel.style.display='block';
+};
+document.getElementById('qrClose').onclick=()=>qrPanel.style.display='none';
+let hitTestSource=null,hitTestSourceRequested=false;
+const reticle=new THREE.Mesh(new THREE.RingGeometry(.12,.16,32),new THREE.MeshBasicMaterial({color:0x55ffbb}));reticle.rotation.x=-Math.PI/2;reticle.matrixAutoUpdate=false;reticle.visible=false;scene.add(reticle);
+const clock=new THREE.Clock();
+renderer.setAnimationLoop((timestamp,frame)=>{
+ const dt=clock.getDelta();planetObjects.forEach(o=>{o.pivot.rotation.y+=dt*o.speed*.22;o.mesh.rotation.y+=dt*.35;});sun.rotation.y+=dt*.12;controls.update();
+ if(frame){
+  const session=renderer.xr.getSession();
+  if(!hitTestSourceRequested){session.requestReferenceSpace('viewer').then(ref=>session.requestHitTestSource({space:ref})).then(src=>hitTestSource=src).catch(()=>{});hitTestSourceRequested=true;session.addEventListener('end',()=>{hitTestSource=null;hitTestSourceRequested=false;reticle.visible=false;});}
+  if(hitTestSource){const hits=frame.getHitTestResults(hitTestSource);if(hits.length){const pose=hits[0].getPose(renderer.xr.getReferenceSpace());reticle.visible=true;reticle.matrix.fromArray(pose.transform.matrix);}else reticle.visible=false;}
+ }
+ renderer.render(scene,camera);
+});
+renderer.domElement.addEventListener('pointerup',e=>{
+ if(renderer.xr.isPresenting){if(reticle.visible){system.position.setFromMatrixPosition(reticle.matrix);system.quaternion.setFromRotationMatrix(reticle.matrix);system.scale.setScalar(.12);statusEl.textContent='Đã đặt mô hình AR. Di chuyển thiết bị để quan sát.';}return;}
+ pointer.x=(e.clientX/innerWidth)*2-1;pointer.y=-(e.clientY/innerHeight)*2+1;raycaster.setFromCamera(pointer,camera);
+ const hits=raycaster.intersectObjects(clickable,false);if(hits.length){showInfo(hits[0].object.userData.key);statusEl.textContent='Đã chọn '+info[hits[0].object.userData.key].name+'.';}
+});
+renderer.xr.addEventListener('sessionstart',()=>{scene.background=null;controls.enabled=false;statusEl.textContent='AR đang chạy: hướng camera vào mặt phẳng, chờ vòng tròn rồi chạm để đặt mô hình.';});
+renderer.xr.addEventListener('sessionend',()=>{scene.background=new THREE.Color(0x050816);controls.enabled=true;statusEl.textContent='Đã thoát AR. Bạn có thể tiếp tục khám phá ở chế độ 3D.';});
+document.getElementById('arButton').onclick=async()=>{
+ if(!navigator.xr){statusEl.textContent='Trình duyệt chưa hỗ trợ WebXR AR. Hãy thử Chrome trên thiết bị Android tương thích và mở trang bằng HTTPS.';return;}
+ try{if(!await navigator.xr.isSessionSupported('immersive-ar')){statusEl.textContent='Thiết bị chưa hỗ trợ immersive-ar. Bạn vẫn có thể xem mô hình 3D.';return;}
+ const session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test'],optionalFeatures:['local-floor']});await renderer.xr.setSession(session);
+ }catch(err){statusEl.textContent='Không thể khởi động AR: '+err.message+'. Kiểm tra quyền camera và HTTPS.';}
+};
+document.getElementById('resetButton').onclick=()=>{system.position.set(0,0,0);system.quaternion.identity();system.scale.setScalar(1);document.getElementById('info').style.display='none';statusEl.textContent='Đã đặt lại mô hình.';};
+document.getElementById('viewButton').onclick=async()=>{if(renderer.xr.isPresenting)await renderer.xr.getSession().end();camera.position.set(0,7.5,16);controls.target.set(0,0,0);controls.enabled=true;system.position.set(0,0,0);system.quaternion.identity();system.scale.setScalar(1);};
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+</script>
+</body></html>
